@@ -142,9 +142,96 @@ fig.update_layout(
 
 st.plotly_chart(fig, use_container_width=True)
 
-st.markdown("""
-### How to interpret
-- **Z-axis**: Shows the actual deflection in microns (um).
-- **Slider**: Adjusts the **visual height** of the Z-axis to make the curvature easier to see.
-- **Color**: Represents the height (yellow = high, blue = low).
-""")
+st.markdown("---")
+
+# --- Thickness Analysis Graph ---
+st.header("Thickness Optimization Graph")
+st.markdown("Simulation of bottom foil thickness vs. warpage (Dome Shape).")
+
+if st.checkbox("Show Thickness Analysis Graphs", value=True):
+    # Simulation Logic for Range
+    def simulate_range(mat_name, mat_props, t_range_um):
+        curvatures = []
+        radii = []
+        
+        base_stack = [
+           {'name': 'PET',         't': 100e-6, 'E': 3.0e9,  'CTE': 60e-6, 'v': 0.4},
+           {'name': 'PI',          't': 20e-6,  'E': 5.0e9,  'CTE': 20e-6, 'v': 0.34},
+           {'name': 'SiOx_bot',    't': 0.5e-6, 'E': 70.0e9, 'CTE': 0.5e-6, 'v': 0.17},
+           {'name': 'OC',          't': 3.0e-6, 'E': 3.0e9,  'CTE': 60e-6, 'v': 0.4},
+           {'name': 'SiOx_top',    't': 0.2e-6, 'E': 70.0e9, 'CTE': 0.5e-6, 'v': 0.17},
+        ]
+        
+        # Process Conditions (Same as main)
+        T_oven = 150.0 
+        T_room = 25.0   
+        delta_T = T_room - T_oven
+
+        for t_um in t_range_um:
+            # Create stack
+            stack = [{'name': mat_name, 't': t_um * 1e-6, **mat_props}] + [m.copy() for m in base_stack]
+            
+            # Calc Neutral Axis
+            current_z = 0
+            for m in stack:
+                m['z_center'] = current_z + m['t'] / 2.0
+                current_z += m['t']
+            
+            num_zn = sum(m['E'] * m['t'] * m['z_center'] for m in stack)
+            den_zn = sum(m['E'] * m['t'] for m in stack)
+            z_n = num_zn / den_zn
+            
+            # Calc EI
+            EI_eff = 0
+            for m in stack:
+                I_local = (1.0/12.0) * (m['t']**3)
+                d = m['z_center'] - z_n
+                EI_eff += m['E'] * (I_local + m['t'] * d**2)
+            
+            # Calc M_T
+            M_T = 0
+            for m in stack:
+                M_T += m['E'] * m['CTE'] * delta_T * (m['z_center'] - z_n) * m['t']
+            
+            k = M_T / EI_eff
+            r = 1.0 / k if k != 0 else 0
+            
+            curvatures.append(k)
+            radii.append(abs(r) * 100) # cm
+            
+        return curvatures, radii
+
+    t_values = np.linspace(10, 100, 20) # 10um to 100um
+    
+    # Copper
+    cu_props = {'E': 110e9, 'CTE': 17e-6, 'v': 0.34}
+    k_cu, r_cu = simulate_range('Copper', cu_props, t_values)
+    
+    # Aluminum
+    al_props = {'E': 69e9, 'CTE': 23e-6, 'v': 0.33}
+    k_al, r_al = simulate_range('Aluminum', al_props, t_values)
+    
+    # Plotting
+    import pandas as pd
+    
+    # Curvature Plot
+    df_k = pd.DataFrame({
+        'Thickness (um)': t_values,
+        'Copper (Cu)': k_cu,
+        'Aluminum (Al)': k_al
+    })
+    df_k = df_k.set_index('Thickness (um)')
+    st.markdown("#### Curvature ($m^{-1}$) vs Thickness")
+    st.write("Negative curvature indicates Dome shape (Convex). More negative = More bent.")
+    st.line_chart(df_k)
+    
+    # Radius Plot
+    df_r = pd.DataFrame({
+        'Thickness (um)': t_values,
+        'Copper (Cu)': r_cu,
+        'Aluminum (Al)': r_al
+    })
+    df_r = df_r.set_index('Thickness (um)')
+    st.markdown("#### Radius of Curvature (cm) vs Thickness")
+    st.write("Smaller radius = More bent.")
+    st.line_chart(df_r)
