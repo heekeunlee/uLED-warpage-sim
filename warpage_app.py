@@ -47,9 +47,9 @@ def calculate_warpage():
         M_T += m['E'] * m['CTE'] * delta_T * (m['z_center'] - z_n) * m['t']
 
     curvature = M_T / EI_eff 
-    return curvature
+    return curvature, materials, delta_T
 
-curvature = calculate_warpage()
+curvature, materials_data, delta_T = calculate_warpage()
 radius = 1.0 / curvature if curvature != 0 else float('inf')
 shape_desc = "Bowl (Concave Up)" if curvature > 0 else "Dome (Concave Down)"
 
@@ -57,6 +57,24 @@ st.sidebar.markdown("---")
 st.sidebar.markdown(f"**Curvature**: {curvature:.2f} $m^{{-1}}$")
 st.sidebar.markdown(f"**Radius**: {radius*100:.2f} cm")
 st.sidebar.markdown(f"**Shape**: {shape_desc}")
+
+# --- Material Properties Table ---
+st.markdown("### Simulation Parameters")
+import pandas as pd
+df_materials = pd.DataFrame(materials_data)
+# Clean up for display
+df_display = df_materials.copy()
+df_display['Thickness (um)'] = df_display['t'] * 1e6
+df_display['Modulus (GPa)'] = df_display['E'] / 1e9
+df_display['CTE (ppm/K)'] = df_display['CTE'] * 1e6
+df_display = df_display[['name', 'Thickness (um)', 'Modulus (GPa)', 'CTE (ppm/K)', 'v']]
+df_display.columns = ['Layer', 'Thickness (um)', 'Modulus (GPa)', 'CTE (ppm/K)', 'Poisson Ratio']
+
+st.table(df_display)
+st.caption(f"Process Condition: Cooling form 150°C to 25°C (ΔT = {delta_T} K)")
+
+st.markdown("---")
+
 
 # --- 3D Plotting ---
 width = 0.035 # m
