@@ -27,6 +27,18 @@ def calculate_warpage():
     T_room = 25.0   
     delta_T = T_room - T_oven
 
+    # --- Bottom Layer Logic (Added) ---
+    if bottom_layer_type != 'None':
+        # Add the selected bottom layer at index 0 (Bottom)
+        if bottom_layer_type == 'Copper (Cu)':
+             materials.insert(0, {'name': 'Copper (Cu)', 't': bottom_thickness_um*1e-6, 'E': 110e9, 'CTE': 17e-6, 'v': 0.34})
+        elif bottom_layer_type == 'Aluminum (Al)':
+             materials.insert(0, {'name': 'Aluminum (Al)', 't': bottom_thickness_um*1e-6, 'E': 69e9, 'CTE': 23e-6, 'v': 0.33})
+        elif bottom_layer_type == 'Stainless Steel (SUS)':
+             materials.insert(0, {'name': 'Stainless Steel', 't': bottom_thickness_um*1e-6, 'E': 200e9, 'CTE': 16e-6, 'v': 0.3})
+        elif bottom_layer_type == 'Glass':
+             materials.insert(0, {'name': 'Glass', 't': bottom_thickness_um*1e-6, 'E': 70e9, 'CTE': 0.5e-6, 'v': 0.2})
+             
     current_z = 0
     for m in materials:
         m['z_center'] = current_z + m['t'] / 2.0
@@ -48,6 +60,14 @@ def calculate_warpage():
 
     curvature = M_T / EI_eff 
     return curvature, materials, delta_T
+
+# Sidebar Inputs for Bottom Layer
+st.sidebar.subheader("Dome Shape Solution")
+bottom_layer_type = st.sidebar.selectbox("Add Bottom Layer", ['None', 'Copper (Cu)', 'Aluminum (Al)', 'Stainless Steel (SUS)', 'Glass'])
+if bottom_layer_type != 'None':
+    bottom_thickness_um = st.sidebar.slider("Layer Thickness (um)", 10, 200, 50, step=10)
+else:
+    bottom_thickness_um = 0
 
 curvature, materials_data, delta_T = calculate_warpage()
 radius = 1.0 / curvature if curvature != 0 else float('inf')
